@@ -4,6 +4,7 @@ const admin = require('firebase-admin');
 const { initializeApp } = require('firebase/app');
 const { getAuth } = require('firebase/auth');
 const { getFirestore } = require('firebase/firestore');
+const cors = require("cors");
 
 // Configura Firebase Admin SDK per il backend
 const serviceAccount = require(process.env.FIREBASE_CREDENTIALS_PATH);
@@ -30,7 +31,7 @@ const messaging = admin.messaging();
 const app = express();
 
 app.use(cors({
-  origin: "https://598b61a4-b67b-4c92-acd2-40b31c72dd17-00-3e81rc69hbmok.kirk.replit.dev",
+  origin: process.env.FRONTEND_URL,
   methods: "GET,POST,PUT,DELETE",
   allowedHeaders: "Content-Type,Authorization"
 }));
