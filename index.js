@@ -28,6 +28,13 @@ const db = admin.firestore();
 const messaging = admin.messaging();
 
 const app = express();
+
+app.use(cors({
+  origin: "https://598b61a4-b67b-4c92-acd2-40b31c72dd17-00-3e81rc69hbmok.kirk.replit.dev",
+  methods: "GET,POST,PUT,DELETE",
+  allowedHeaders: "Content-Type,Authorization"
+}));
+
 app.use(express.json());
 
 /** ✅ API di autenticazione */
