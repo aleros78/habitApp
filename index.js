@@ -32,7 +32,7 @@ const app = express();
 
 const allowedOrigins = [
   process.env.FRONTEND_URL,
-  "https://habit-money-front.vercel.app/"
+  "https://habit-money-front.vercel.app"
 ];
 
 app.use(cors({
