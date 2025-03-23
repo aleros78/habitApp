@@ -110,6 +110,40 @@ app.post('/complete-habit', async (req, res) => {
   }
 });
 
+app.get('/history/:userId', async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const snapshot = await db.collection('completed_habits')
+      .where('userId', '==', userId)
+      .orderBy('completedAt', 'desc')
+      .get();
+
+    const history = [];
+
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+
+      // Recupera il nome dell’abitudine
+      const habitDoc = await db.collection('habits').doc(data.habitId).get();
+      const habitName = habitDoc.exists ? habitDoc.data().name : 'Abitudine sconosciuta';
+
+      history.push({
+        id: doc.id,
+        habitId: data.habitId,
+        habitName,
+        value: data.value,
+        completedAt: data.completedAt.toDate() // opzionale: converti Timestamp in Date
+      });
+    }
+
+    res.json(history);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
 /** ✅ API per inviare notifiche push */
 app.post('/notifications', async (req, res) => {
   const { token, message } = req.body;
@@ -130,17 +164,57 @@ app.post('/notifications', async (req, res) => {
   }
 });
 
-/** ✅ API per gestire il saldo */
-app.post('/reset-balance', async (req, res) => {
-  const { userId } = req.body;
+app.post('/reset-balance/:userId', async (req, res) => {
+  const { userId } = req.params;
+
   try {
     const userRef = db.collection('users').doc(userId);
-    await userRef.update({ balance: 0 });
-    res.json({ message: 'Saldo azzerato' });
+    const userDoc = await userRef.get();
+
+    const currentBalance = userDoc.exists ? userDoc.data().balance || 0 : 0;
+
+    // Se il saldo è già zero, non registriamo nulla
+    if (currentBalance === 0) {
+      return res.json({ message: 'Saldo già azzerato' });
+    }
+
+    // Salviamo lo storico del reset
+    await db.collection('balance_resets').add({
+      userId,
+      amount: currentBalance,
+      resetAt: admin.firestore.Timestamp.now()
+    });
+
+    // Azzeriamo il saldo
+    await userRef.set({ balance: 0 }, { merge: true });
+
+    res.json({ message: 'Saldo azzerato', oldBalance: currentBalance });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
+
+app.get('/balance-history/:userId', async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const snapshot = await db.collection('balance_resets')
+      .where('userId', '==', userId)
+      .orderBy('resetAt', 'desc')
+      .get();
+
+    const history = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      resetAt: doc.data().resetAt.toDate() // per renderlo leggibile
+    }));
+
+    res.json(history);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 
 
 /** ✅ API per recuperare il saldo */
