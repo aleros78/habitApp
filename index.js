@@ -150,7 +150,8 @@ app.get('/balance/:userId', async (req, res) => {
     const userDoc = await db.collection('users').doc(userId).get();
 
     if (!userDoc.exists) {
-      return res.status(404).json({ error: 'Utente non trovato' });
+      // Documento utente non ancora creato: restituisci balance = 0
+      return res.json({ balance: 0 });
     }
 
     const data = userDoc.data();
