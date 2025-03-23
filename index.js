@@ -142,6 +142,24 @@ app.post('/reset-balance', async (req, res) => {
   }
 });
 
+
+/** ✅ API per recuperare il saldo */
+app.get('/balance/:userId', async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const userDoc = await db.collection('users').doc(userId).get();
+
+    if (!userDoc.exists) {
+      return res.status(404).json({ error: 'Utente non trovato' });
+    }
+
+    const data = userDoc.data();
+    res.json({ balance: data.balance || 0 });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 /** ✅ API per gestire l’abbonamento Premium */
 app.post('/subscribe', async (req, res) => {
   const { userId, isPremium } = req.body;
