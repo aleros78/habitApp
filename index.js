@@ -164,7 +164,7 @@ app.post('/notifications', async (req, res) => {
   }
 });
 
-app.post('/reset-balance/:userId', async (req, res) => {
+app.get('/reset-balance/:userId', async (req, res) => {
   const { userId } = req.params;
 
   try {
