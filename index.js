@@ -82,6 +82,7 @@ app.post('/habits', async (req, res) => {
       userId,
       name,
       value,
+      deleted: false,
       createdAt: admin.firestore.Timestamp.now(),
     });
     res.json({ id: habitRef.id });
@@ -93,9 +94,24 @@ app.post('/habits', async (req, res) => {
 app.get('/habits/:userId', async (req, res) => {
   const { userId } = req.params;
   try {
-    const snapshot = await db.collection('habits').where('userId', '==', userId).get();
+    const snapshot = await db.collection('habits')
+      .where('userId', '==', userId)
+      .where('deleted', '!=', true) // Filtra le abitudini cancellate
+      .get();
+
     const habits = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     res.json(habits);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/habits/:habitId', async (req, res) => {
+  const { habitId } = req.params;
+  try {
+    const habitRef = db.collection('habits').doc(habitId);
+    await habitRef.update({ deleted: true });
+    res.json({ message: 'Abitudine cancellata logicamente' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -135,16 +151,18 @@ app.get('/history/:userId', async (req, res) => {
     for (const doc of snapshot.docs) {
       const data = doc.data();
 
-      // Recupera il nome dell’abitudine
       const habitDoc = await db.collection('habits').doc(data.habitId).get();
-      const habitName = habitDoc.exists ? habitDoc.data().name : 'Abitudine sconosciuta';
+      const habitData = habitDoc.data();
+      const habitName = (habitDoc.exists && habitData && !habitData.deleted)
+        ? habitData.name
+        : 'Abitudine cancellata';
 
       history.push({
         id: doc.id,
         habitId: data.habitId,
         habitName,
         value: data.value,
-        completedAt: data.completedAt.toDate() // opzionale: converti Timestamp in Date
+        completedAt: data.completedAt.toDate()
       });
     }
 
@@ -153,7 +171,6 @@ app.get('/history/:userId', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 
 /** ✅ API per inviare notifiche push */
 app.post('/notifications', async (req, res) => {
