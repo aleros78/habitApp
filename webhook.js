@@ -7,7 +7,7 @@ app.use(bodyParser.json());
 
 app.post('/deploy', (req, res) => {
   console.log('📩 Webhook ricevuto!');
-  exec('/home/alessandro/deploy.sh', (error, stdout, stderr) => {
+  exec('/home/alessandro/deployHabitMoney.sh', (error, stdout, stderr) => {
     if (error) {
       console.error(`❌ Errore: ${error.message}`);
       return res.status(500).send('Errore durante il deploy');
