@@ -3,9 +3,8 @@ const router = express.Router();
 const { db, admin } = require('../services/firebase');
 
 router.get('/reset-balance/:userId', async (req, res) => {
-  const { userId } = req.params;
   try {
-    const userRef = db.collection('users').doc(userId);
+    const userRef = db.collection('users').doc(req.uid);
     const userDoc = await userRef.get();
     const currentBalance = userDoc.exists ? userDoc.data().balance || 0 : 0;
 
@@ -13,18 +12,18 @@ router.get('/reset-balance/:userId', async (req, res) => {
       return res.json({ message: 'Saldo già azzerato' });
     }
 
-    const pendingRef = db.collection('pending_completions').doc(userId);
+    const pendingRef = db.collection('pending_completions').doc(req.uid);
     const pendingDoc = await pendingRef.get();
     const completions = pendingDoc.exists ? pendingDoc.data().completions : [];
 
     const resetDoc = await db.collection('balance_resets').add({
-      userId,
+      userId: req.uid,
       amount: currentBalance,
       resetAt: admin.firestore.Timestamp.now()
     });
 
-    await db.collection('completed_habits').doc(`${userId}_${resetDoc.id}`).set({
-      userId,
+    await db.collection('completed_habits').doc(`${req.uid}_${resetDoc.id}`).set({
+      userId: req.uid,
       resetId: resetDoc.id,
       from: completions.length > 0 ? completions[0].completedAt : null,
       to: completions.length > 0 ? completions[completions.length - 1].completedAt : null,
@@ -41,9 +40,8 @@ router.get('/reset-balance/:userId', async (req, res) => {
 });
 
 router.get('/balance/:userId', async (req, res) => {
-  const { userId } = req.params;
   try {
-    const userDoc = await db.collection('users').doc(userId).get();
+    const userDoc = await db.collection('users').doc(req.uid).get();
     const data = userDoc.exists ? userDoc.data() : {};
     res.json({ balance: data.balance || 0 });
   } catch (error) {
@@ -52,10 +50,9 @@ router.get('/balance/:userId', async (req, res) => {
 });
 
 router.get('/balance-history/:userId', async (req, res) => {
-  const { userId } = req.params;
   try {
     const snapshot = await db.collection('balance_resets')
-      .where('userId', '==', userId)
+      .where('userId', '==', req.uid)
       .orderBy('resetAt', 'desc')
       .get();
 
@@ -66,16 +63,6 @@ router.get('/balance-history/:userId', async (req, res) => {
     }));
 
     res.json(history);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-router.post('/subscribe', async (req, res) => {
-  const { userId, isPremium } = req.body;
-  try {
-    await db.collection('users').doc(userId).update({ isPremium });
-    res.json({ message: 'Abbonamento aggiornato' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

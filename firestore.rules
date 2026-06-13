@@ -1,0 +1,51 @@
+rules_version = '2';
+
+// Regole di sicurezza Firestore per HabitMoney.
+//
+// NOTA: il backend Express accede a Firestore tramite il Firebase Admin SDK, che
+// BYPASSA queste regole. Servono come difesa in profondità: bloccano qualunque
+// accesso client diretto non autorizzato (oggi inesistente, ma il giorno in cui
+// un client leggesse Firestore direttamente queste regole impediscono di vedere i
+// dati altrui). Il default è "nega tutto".
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    // habits — documento con campo `userId`
+    match /habits/{habitId} {
+      allow read, update, delete: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+    }
+
+    // users — doc id == uid
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // pending_completions — doc id == uid
+    match /pending_completions/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // balance_resets — documento con campo `userId`
+    match /balance_resets/{resetId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+    }
+
+    // completed_habits — doc id == `${uid}_${resetId}`, con campo `userId`
+    match /completed_habits/{docId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create, update: if isOwner(request.resource.data.userId);
+    }
+
+    // Default esplicito: tutto il resto è negato.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

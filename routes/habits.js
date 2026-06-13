@@ -3,10 +3,10 @@ const router = express.Router();
 const { db, admin } = require('../services/firebase');
 
 router.post('/habits', async (req, res) => {
-  const { userId, name, value } = req.body;
+  const { name, value } = req.body;
   try {
     const habitRef = await db.collection('habits').add({
-      userId,
+      userId: req.uid,
       name,
       value,
       deleted: false,
@@ -19,10 +19,9 @@ router.post('/habits', async (req, res) => {
 });
 
 router.get('/habits/:userId', async (req, res) => {
-  const { userId } = req.params;
   try {
     const snapshot = await db.collection('habits')
-      .where('userId', '==', userId)
+      .where('userId', '==', req.uid)
       .where('deleted', '!=', true)
       .get();
     const habits = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -36,6 +35,12 @@ router.delete('/habits/:habitId', async (req, res) => {
   const { habitId } = req.params;
   try {
     const habitRef = db.collection('habits').doc(habitId);
+    const habitDoc = await habitRef.get();
+
+    if (!habitDoc.exists || habitDoc.data().userId !== req.uid) {
+      return res.status(404).json({ error: 'Abitudine non trovata' });
+    }
+
     await habitRef.update({ deleted: true });
     res.json({ message: 'Abitudine cancellata logicamente' });
   } catch (error) {
@@ -44,11 +49,20 @@ router.delete('/habits/:habitId', async (req, res) => {
 });
 
 router.post('/complete-habit', async (req, res) => {
-  const { userId, habitId, value } = req.body;
+  const { habitId } = req.body;
   try {
-    const pendingRef = db.collection('pending_completions').doc(userId);
+    // Il valore viene letto dall'abitudine sul DB, non dal client, per evitare manomissioni.
+    const habitDoc = await db.collection('habits').doc(habitId).get();
+
+    if (!habitDoc.exists || habitDoc.data().userId !== req.uid || habitDoc.data().deleted) {
+      return res.status(404).json({ error: 'Abitudine non trovata' });
+    }
+
+    const value = habitDoc.data().value;
+
+    const pendingRef = db.collection('pending_completions').doc(req.uid);
     await pendingRef.set({
-      userId,
+      userId: req.uid,
       completions: admin.firestore.FieldValue.arrayUnion({
         habitId,
         value,
@@ -56,7 +70,7 @@ router.post('/complete-habit', async (req, res) => {
       })
     }, { merge: true });
 
-    const userRef = db.collection('users').doc(userId);
+    const userRef = db.collection('users').doc(req.uid);
     await userRef.set({ balance: admin.firestore.FieldValue.increment(value) }, { merge: true });
 
     res.json({ message: 'Abitudine completata e aggiunta ai pending' });
@@ -66,10 +80,8 @@ router.post('/complete-habit', async (req, res) => {
 });
 
 router.get('/history/:userId', async (req, res) => {
-  const { userId } = req.params;
-
   try {
-    const pendingRef = db.collection('pending_completions').doc(userId);
+    const pendingRef = db.collection('pending_completions').doc(req.uid);
     const pendingDoc = await pendingRef.get();
 
     if (!pendingDoc.exists) {
@@ -99,10 +111,10 @@ router.get('/history/:userId', async (req, res) => {
 });
 
 router.get('/completed-history/:userId/:resetId', async (req, res) => {
-  const { userId, resetId } = req.params;
+  const { resetId } = req.params;
 
   try {
-    const docRef = db.collection('completed_habits').doc(`${userId}_${resetId}`);
+    const docRef = db.collection('completed_habits').doc(`${req.uid}_${resetId}`);
     const doc = await docRef.get();
 
     if (!doc.exists) {
